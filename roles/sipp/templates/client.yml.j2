@@ -1,0 +1,31 @@
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: 'sipp-client-{{ item.status.podIP }}-{{ trunc_uuid }}'
+  namespace: '{{ operator_namespace }}'
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: sipp-bench-client-{{ trunc_uuid }}
+    spec:
+{% if workload_args.hostnetwork is defined and workload_args.hostnetwork %}
+      hostNetwork: true
+      serviceAccountName: benchmark-operator
+      serviceAccount: benchmark-operator
+{% endif %}
+      containers:
+      - name: benchmark
+        image: {{ workload_args.image | default('quay.io/mukrishn/sipp-test:latest') }}
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c"]
+        args:
+          - "sipp -sn uac {{ item.status.podIP }} -m {{ workload_args.ncalls }}"
+      restartPolicy: OnFailure
+{% if workload_args.pin_client is defined %}
+      nodeSelector:
+          kubernetes.io/hostname: '{{ workload_args.pin_client }}'
+{% endif %}
+{% include "metadata.yml.j2" %}

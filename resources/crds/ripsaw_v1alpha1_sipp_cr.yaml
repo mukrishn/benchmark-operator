@@ -1,0 +1,10 @@
+apiVersion: ripsaw.cloudbulldozer.io/v1alpha1
+kind: Benchmark
+metadata:
+  name: sipp-benchmark
+  namespace: my-ripsaw
+spec:
+  workload:
+    name: sipp
+    args:
+      ncalls: 100

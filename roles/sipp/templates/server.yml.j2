@@ -1,0 +1,30 @@
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: 'sipp-server-{{ item }}-{{ trunc_uuid }}'
+  namespace: "{{ operator_namespace }}"
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: sipp-bench-server-{{ trunc_uuid }}
+    spec:
+{% if workload_args.hostnetwork is defined and sipp.hostnetwork %}
+      hostNetwork: true
+{% endif %}
+      containers:
+      - name: benchmark
+        image: {{ workload_args.image | default('quay.io/mukrishn/sipp-test:latest') }}
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c"]
+        args:
+          - "sipp -sn uas -m {{ workload_args.ncalls }}"
+      restartPolicy: OnFailure
+{% if workload_args.pin_server is defined %}
+      nodeSelector:
+        kubernetes.io/hostname: '{{ workload_args.pin_server }}'
+{% endif %}
+{% include "metadata.yml.j2" %}
