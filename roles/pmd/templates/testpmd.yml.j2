@@ -1,0 +1,98 @@
+kind: Pod
+apiVersion: apps/v1
+metadata:
+  name: "testpmd-application-pod-{{ trunc_uuid }}"
+  namespace: "{{ operator_namespace }}"
+  annotations:
+    k8s.v1.cni.cncf.io/networks: '[
+{% for network in workload_args.networks %}
+{% set outer_loop = loop %}
+{% for count in range(network.count) %}
+      {
+        "name": "{{ network.name }}",
+{% if network.mac|default([])|length == network.count %}
+        "mac": "{{ network.mac[loop.index - 1] }}",
+{% endif %}
+        "namespace": "{{ operator_namespace }}"
+      }{% if loop.index < network.count or outer_loop.index < network_name_list|length %},{% endif %}
+{% endfor %}
+{% endfor %}
+    ]'
+spec:
+  nodeSelector:
+    examplecnf.openshift.io/testpmd: ""
+  terminationGracePeriodSeconds: {{ workload_args.termination_grace_period_seconds | default(120) }}
+  containers:
+  - name: testpmd
+    command: ["testpmd-wrapper"]
+    args:
+    - "--socket-mem {{ workload_args.socket_memory | default(1024) }}"
+    - "-n {{ workload_args.memory_channels | default(4) }}"
+    - "--proc-type auto"
+    - "--file-prefix pg"
+    - "--"
+    - "--disable-rss"
+    - "--nb-cores={{ workload_args.forwarding_cores | default(4) }}"
+    - "--rxq={{ workload_args.rx_queues | default(1) }}"
+    - "--txq={{ workload_args.tx_queues | default(1) }}"
+    - "--rxd={{ workload_args.rx_descriptors | default(1024) }}"
+    - "--txd={{ workload_args.tx_descriptors | default(1024) }}"
+    - "--auto-start"
+{% for mac in ethpeer_maclist %}
+    - "--eth-peer={{ loop.index -1 }},{{ mac }}"
+{% endfor %}
+    - "--forward-mode={{ workload_args.forward_mode | default('mac') }}"
+    image: "{{ workload_args.image_testpmd | default('quay.io/rh-nfv-int/testpmd-container-app-testpmd:v0.2.0') }}"
+    imagePullPolicy: "{{ workload_args.image_pull_policy | default('Always') }}"
+    securityContext:
+{% if workload_args.privileged %}
+      privileged: true
+{% else %}
+      capabilities:
+        add: ["IPC_LOCK", "NET_ADMIN"]
+{% endif %}
+    resources:
+      limits:
+        hugepages-1Gi: {{ workload_args.pod_hugepage_1gb_count }}
+        memory: {{ workload_args.pod_memory }}
+        cpu: {{ workload_args.pod_cpu }}
+{% for key, value in network_resources.items() %}
+        {{ key }}: {{ value }}
+{% endfor %}
+      requests:
+        hugepages-1Gi: {{ workload_args.pod_hugepage_1gb_count }}
+        memory: {{ workload_args.pod_memory }}
+        cpu: {{ workload_args.pod_cpu }}
+{% for key, value in network_resources.items() %}
+        {{ key }}: {{ value }}
+{% endfor %}
+    volumeMounts:
+    - name: hugepage
+      mountPath: /dev/hugepages
+    - name: log-dir
+      mountPath: /var/log/testpmd
+    - name: lib-dir
+      mountPath: /var/lib/testpmd
+    env:
+    - name: NETWORK_NAME_LIST
+      value: "{{ network_resources.keys()|list|join(',') }}"
+    - name: TESTPMD_CPU_COUNT
+      value: "{{ cpu }}"
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CR_NAME
+      value: "testpmd"
+{% for key, value in workload_args.environments.items() %}
+    - name: {{ key }}
+      value: "{{ value }}"
+{% endfor %}
+  volumes:
+  - name: hugepage
+    emptyDir:
+      medium: HugePages
+  - name: log-dir
+    emptyDir: {}
+  - name: lib-dir
+    emptyDir: {}

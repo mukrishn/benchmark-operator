@@ -1,0 +1,137 @@
+---
+- name: Get current state
+  k8s_facts:
+    api_version: ripsaw.cloudbulldozer.io/v1alpha1
+    kind: Benchmark
+    name: '{{ meta.name }}'
+    namespace: '{{ operator_namespace }}'
+  register: resource_state
+
+- operator_sdk.util.k8s_status:
+    api_version: ripsaw.cloudbulldozer.io/v1alpha1
+    kind: Benchmark
+    name: "{{ meta.name }}"
+    namespace: "{{ operator_namespace }}"
+    status:
+      state: Starting
+      complete: false
+  when: resource_state.resources[0].status.state is not defined
+
+- name: Update current state
+  k8s_facts:
+    api_version: ripsaw.cloudbulldozer.io/v1alpha1
+    kind: Benchmark
+    name: '{{ meta.name }}'
+    namespace: '{{ operator_namespace }}'
+  register: resource_state
+
+- name: "Parse network {{ item }}"
+  include_tasks: 10_network_parser.yaml
+  loop: "{{ workload_args.networks }}"
+
+- block:
+
+  - name: Start Testpmd application pods
+    k8s:
+      definition: "{{ lookup('template', 'testpmd.yml.j2') | from_yaml }}"
+    with_sequence: start=1 count={{ workload_args.size|default('1')|int }}
+
+  - name: Update state to Starting Server
+    operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: "Starting TestPMD"
+
+  when: resource_state.resources[0].status.state == "Starting"
+
+- block:
+
+  - name: Wait for pods to be running....
+    k8s_facts:
+      kind: Pod
+      api_version: v1
+      namespace: '{{ operator_namespace }}'
+      label_selectors:
+        - app = testpmd-application-pod-{{ trunc_uuid }}
+    register: application_pods
+
+  - name: Update state to Starting TRex
+    operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: "Running"
+    when: 
+      - "(application_pods | json_query('resources[].status.phase') is defined"
+      - "(application_pods | json_query('resources[].status[]')|selectattr('phase','match','Running')|list|length) == 1"
+
+  when: resource_state.resources[0].status.state == "Starting TestPMD"
+
+- block:
+
+  - name: Start TRex
+    k8s:
+      definition: "{{ lookup('template', 'trex.yml.j2') | from_yaml }}"
+    with_sequence: start=1 count={{ workload_args.size|default('1')|int }}
+
+  - name: Update state to Waiting for TRex
+    operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: "Waiting for TRex"  
+
+  when: resource_state.resources[0].status.state == "Starting TRex"
+
+- block:
+
+  - name: Wait for pods to be running....
+    k8s_facts:
+      kind: Pod
+      api_version: v1
+      namespace: '{{ operator_namespace }}'
+      label_selectors:
+        - app = trex-pod-{{ trunc_uuid }}
+    register: trex_pods
+
+  - operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: Running
+        complete: false
+    when: trex_pods.resources|length > 0
+
+  when: resource_state.resources[0].status.state == "Waiting for TRex"
+
+- block:
+#  - name: Waiting for Jobs to complete....
+#    k8s_facts:
+#      kind: Job
+#      api_version: v1
+#      namespace: '{{ operator_namespace }}'
+#      label_selectors:
+#        - app = sipp-bench-client-{{ trunc_uuid }}
+#    register: client_jobs
+
+  - operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: Complete
+        complete: true
+#    when: "workload_args.pairs|default('1')|int == (client_jobs | json_query('resources[].status.succeeded')|length)"
+
+  when: resource_state.resources[0].status.state == "Running"
+
