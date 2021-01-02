@@ -5,7 +5,7 @@ metadata:
   namespace: "{{ operator_namespace }}"
   annotations:
     k8s.v1.cni.cncf.io/networks: '[
-{% for network in workload_args.networks %}
+{% for network in workload_args.networks.testpmd %}
 {% set outer_loop = loop %}
 {% for count in range(network.count) %}
       {
@@ -19,13 +19,17 @@ metadata:
 {% endfor %}
     ]'
 spec:
-  nodeSelector:
-    examplecnf.openshift.io/testpmd: ""
+{% if workload_args.pin is sameas true %}
+      nodeSelector:
+        kubernetes.io/hostname: '{{ workload_args.pin_testpmd }}'
+{% endif %}
   terminationGracePeriodSeconds: {{ workload_args.termination_grace_period_seconds | default(120) }}
   containers:
   - name: testpmd
-    command: ["testpmd-wrapper"]
+    command: ["testpmd"]
     args:
+    - "-l $(cat /sys/fs/cgroup/cpuset/cpuset.cpus)"
+    - "$(PCI=""; IFS=',' read -r -a NETWORK_ARRAY <<< "$NETWORK_NAME_LIST"; for item in "${NETWORK_ARRAY[@]}"; do IFS='/' read -r -a RES_ARRAY <<< "$item"; NAME="PCIDEVICE_OPENSHIFT_IO_${RES_ARRAY[1]^^}";IFS=',' read -r -a PCI_ARRAY <<< "${!NAME}";for pci_item in "${PCI_ARRAY[@]}"; do PCI+=" -w ${pci_item} ";done;done;echo $PCI)"
     - "--socket-mem {{ workload_args.socket_memory | default(1024) }}"
     - "-n {{ workload_args.memory_channels | default(4) }}"
     - "--proc-type auto"
@@ -42,7 +46,7 @@ spec:
     - "--eth-peer={{ loop.index -1 }},{{ mac }}"
 {% endfor %}
     - "--forward-mode={{ workload_args.forward_mode | default('mac') }}"
-    image: "{{ workload_args.image_testpmd | default('quay.io/rh-nfv-int/testpmd-container-app-testpmd:v0.2.0') }}"
+    image: "{{ workload_args.image_testpmd | default('registry.redhat.io/openshift4/dpdk-base-rhel8:v4.6') }}"
     imagePullPolicy: "{{ workload_args.image_pull_policy | default('Always') }}"
     securityContext:
 {% if workload_args.privileged %}
@@ -53,16 +57,16 @@ spec:
 {% endif %}
     resources:
       limits:
-        hugepages-1Gi: {{ workload_args.pod_hugepage_1gb_count }}
-        memory: {{ workload_args.pod_memory }}
-        cpu: {{ workload_args.pod_cpu }}
+        hugepages-1Gi: {{ workload_args.pod_hugepage_1gb_count | default('4Gi') }}
+        memory: {{ workload_args.pod_memory | default('1000Mi') }}
+        cpu: {{ workload_args.pod_cpu | default(6) }}
 {% for key, value in network_resources.items() %}
         {{ key }}: {{ value }}
 {% endfor %}
       requests:
-        hugepages-1Gi: {{ workload_args.pod_hugepage_1gb_count }}
-        memory: {{ workload_args.pod_memory }}
-        cpu: {{ workload_args.pod_cpu }}
+        hugepages-1Gi: {{ workload_args.pod_hugepage_1gb_count | default('4Gi') }}
+        memory: {{ workload_args.pod_memory | default('1000Mi') }}
+        cpu: {{ workload_args.pod_cpu | default(6) }}
 {% for key, value in network_resources.items() %}
         {{ key }}: {{ value }}
 {% endfor %}
@@ -76,14 +80,6 @@ spec:
     env:
     - name: NETWORK_NAME_LIST
       value: "{{ network_resources.keys()|list|join(',') }}"
-    - name: TESTPMD_CPU_COUNT
-      value: "{{ cpu }}"
-    - name: NODE_NAME
-      valueFrom:
-        fieldRef:
-          fieldPath: spec.nodeName
-    - name: CR_NAME
-      value: "testpmd"
 {% for key, value in workload_args.environments.items() %}
     - name: {{ key }}
       value: "{{ value }}"

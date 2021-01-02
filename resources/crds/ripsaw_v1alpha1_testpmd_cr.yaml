@@ -1,0 +1,33 @@
+apiVersion: ripsaw.cloudbulldozer.io/v1alpha1
+kind: Benchmark
+metadata:
+  name: testpmd-benchmark
+  namespace: my-ripsaw
+spec:
+  clustername: myk8scluster
+  #elasticsearch:
+  #   server: elk.server.com
+  #   port: 9200
+  #test_user: username_to_attach_to_metadata
+  workload:
+    # cleanup: true
+    name: testpmd
+    args:
+      networks:
+        testpmd:
+          - name: example-cnf-sriovnetwork
+            count: 2
+            mac:
+              - 20:04:0f:f1:89:01
+              - 20:04:0f:f1:89:02
+        trex:
+          - name: example-cnf-sriovnetwork
+            count: 2
+            mac:
+              - 20:04:0f:f1:89:03
+              - 20:04:0f:f1:89:04
+      pin: false
+      pin_testpmd: "node-0"
+      pin_trex: "node-1"
+      kind: pod
+      duration: 30
