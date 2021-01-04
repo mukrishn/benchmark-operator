@@ -13,19 +13,20 @@ spec:
     # cleanup: true
     name: testpmd
     args:
+      privileged: true
       networks:
         testpmd:
           - name: example-cnf-sriovnetwork
             count: 2
             mac:
-              - 20:04:0f:f1:89:01
-              - 20:04:0f:f1:89:02
+              - 20:04:0f:f1:89:06
+              - 20:04:0f:f1:89:07
         trex:
           - name: example-cnf-sriovnetwork
             count: 2
             mac:
-              - 20:04:0f:f1:89:03
-              - 20:04:0f:f1:89:04
+              - 20:04:0f:f1:89:08
+              - 20:04:0f:f1:89:09
       pin: false
       pin_testpmd: "node-0"
       pin_trex: "node-1"

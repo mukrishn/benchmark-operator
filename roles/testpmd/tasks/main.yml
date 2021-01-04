@@ -73,7 +73,6 @@
       status:
         state: "Running"
     when: 
-      - "(application_pods | json_query('resources[].status.phase') is defined"
       - "(application_pods | json_query('resources[].status[]')|selectattr('phase','match','Running')|list|length) == 1"
 
   when: resource_state.resources[0].status.state == "Starting TestPMD"

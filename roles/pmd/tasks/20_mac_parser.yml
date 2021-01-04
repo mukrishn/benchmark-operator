@@ -1,3 +1,0 @@
-- name: Set Eth peer Macs of {{ network.name }}
-  ethpeer_maclist: "{{ ethpeer_maclist | default([]) + [ network.mac[item - 1] ] }}"
-  with_sequence: start=1 count={{ network.count |default('1')|int }} 
