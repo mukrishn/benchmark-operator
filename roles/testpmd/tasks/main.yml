@@ -29,18 +29,27 @@
   include_tasks: 10_network_parser.yml
   loop: "{{ workload_args.networks.testpmd }}"
 
-- name: "Set Eth peer MAC list"
+- name: "Set testpmd MAC list"
+  include_tasks: 20_mac_parser.yml
+  loop: "{{ workload_args.networks.testpmd }}"
+  loop_control:
+     loop_var: network
+  vars:
+    net_type: testpmd 
+    
+- name: "Set trex MAC list"
   include_tasks: 20_mac_parser.yml
   loop: "{{ workload_args.networks.trex }}"
   loop_control:
      loop_var: network
+  vars:
+    net_type: trex 
 
 - block:
 
   - name: Start Testpmd application pods
     k8s:
       definition: "{{ lookup('template', 'testpmd.yml.j2') | from_yaml }}"
-    with_sequence: start=1 count={{ workload_args.size|default('1')|int }}
 
   - name: Update state to Starting Server
     operator_sdk.util.k8s_status:
@@ -71,23 +80,22 @@
       name: "{{ meta.name }}"
       namespace: "{{ operator_namespace }}"
       status:
-        state: "Running"
+        state: "Starting TRex"
     when: 
       - "(application_pods | json_query('resources[].status[]')|selectattr('phase','match','Running')|list|length) == 1"
 
   when: resource_state.resources[0].status.state == "Starting TestPMD"
 
 
-# - name: "Parse TRex network {{ item }}"
-#   include_tasks: 10_network_parser.yaml
-#   loop: "{{ networks_trex }}"
+- name: "Parse TRex network"
+  include_tasks: 10_network_parser.yaml
+  loop: "{{ workload_args.networks.trex }}"
 
 - block:
 
   - name: Start TRex
     k8s:
       definition: "{{ lookup('template', 'trex.yml.j2') | from_yaml }}"
-    with_sequence: start=1 count={{ workload_args.size|default('1')|int }}
 
   - name: Update state to Waiting for TRex
     operator_sdk.util.k8s_status:
