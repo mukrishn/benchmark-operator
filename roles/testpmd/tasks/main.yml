@@ -88,7 +88,7 @@
 
 
 - name: "Parse TRex network"
-  include_tasks: 10_network_parser.yaml
+  include_tasks: 10_network_parser.yml
   loop: "{{ workload_args.networks.trex }}"
 
 - block:
