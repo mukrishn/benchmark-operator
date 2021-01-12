@@ -1,0 +1,11 @@
+- name: Set Peer Macs of "{{ network.name }}"
+  set_fact:
+    maclist_peer: "{{ maclist_peer | default([]) + [ network.mac[item|int-1] | default('50:50:00' | random_mac) ] }}"
+  with_sequence: start=1 count={{ network.count |default('1')|int }} 
+  when: net_type == 'peer'
+
+- name: Set testpmd Macs of "{{ network.name }}"
+  set_fact:
+    maclist_testpmd: "{{ maclist_testpmd | default([]) + [ network.mac[item|int-1] | default('60:60:00' | random_mac) ] }}"
+  with_sequence: start=1 count={{ network.count |default('1')|int }} 
+  when: net_type == 'testpmd'

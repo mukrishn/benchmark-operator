@@ -1,0 +1,109 @@
+---
+- name: Get current state
+  k8s_facts:
+    api_version: ripsaw.cloudbulldozer.io/v1alpha1
+    kind: Benchmark
+    name: '{{ meta.name }}'
+    namespace: '{{ operator_namespace }}'
+  register: resource_state
+
+- operator_sdk.util.k8s_status:
+    api_version: ripsaw.cloudbulldozer.io/v1alpha1
+    kind: Benchmark
+    name: "{{ meta.name }}"
+    namespace: "{{ operator_namespace }}"
+    status:
+      state: Starting
+      complete: false
+  when: resource_state.resources[0].status.state is not defined
+
+- name: Update current state
+  k8s_facts:
+    api_version: ripsaw.cloudbulldozer.io/v1alpha1
+    kind: Benchmark
+    name: '{{ meta.name }}'
+    namespace: '{{ operator_namespace }}'
+  register: resource_state
+
+- name: "Parse testpmd network"
+  include_tasks: 10_network_parser.yml
+  loop: "{{ workload_args.networks.testpmd }}"
+
+- name: "Set testpmd MAC list"
+  include_tasks: 20_mac_parser.yml
+  loop: "{{ workload_args.networks.testpmd }}"
+  loop_control:
+     loop_var: network
+  vars:
+    net_type: testpmd 
+    
+- name: "Set peer MAC list"
+  include_tasks: 20_mac_parser.yml
+  loop: "{{ workload_args.networks.testpmd }}"
+  loop_control:
+     loop_var: network
+  vars:
+    net_type: peer
+  when: ( workload_args.peer_mac is not defined ) or ( workload_args.peer_mac|length == 0 )
+
+- set_fact:
+    maclist_peer: "{{ workload_args.peer_mac }}"
+  when: 
+    - workload_args.peer_mac is defined 
+    - workload_args.peer_mac|length > 0
+
+- block:
+
+  - name: Start Testpmd application pods
+    k8s:
+      definition: "{{ lookup('template', 'testpmd.yml.j2') | from_yaml }}"
+
+  - name: Update state to Starting Server
+    operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: "Starting TestPMD"
+
+  when: resource_state.resources[0].status.state == "Starting"
+
+- block:
+
+  - name: Wait for pods to be running....
+    k8s_facts:
+      kind: Pod
+      api_version: v1
+      namespace: '{{ operator_namespace }}'
+      label_selectors:
+        - app = testpmd-application-pod-{{ trunc_uuid }}
+    register: application_pods
+
+  - name: Update state to Running
+    operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: "Running"
+    when: 
+      - "(application_pods | json_query('resources[].status[]')|selectattr('phase','match','Running')|list|length) == 1"
+
+  when: resource_state.resources[0].status.state == "Starting TestPMD"
+
+
+- block:
+
+  - operator_sdk.util.k8s_status:
+      api_version: ripsaw.cloudbulldozer.io/v1alpha1
+      kind: Benchmark
+      name: "{{ meta.name }}"
+      namespace: "{{ operator_namespace }}"
+      status:
+        state: Complete
+        complete: true
+
+  when: resource_state.resources[0].status.state == "Running"
+
