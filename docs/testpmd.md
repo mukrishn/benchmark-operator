@@ -57,7 +57,7 @@ spec:
 
 ### Sample PAO configuration
 
-The CPU and socket information might vary, this is defined based on the recommendation [here](https://docs.google.com/document/d/1wlT8z-QNzibgmNZnw5M3QNbwBcE0bJEcjWwh_BoA1Ig/edit?usp=sharing)
+The CPU and socket information might vary, use the below as an example. 
 ```yaml
 ---
 apiVersion: performance.openshift.io/v1
@@ -106,13 +106,13 @@ spec:
       networks:
         testpmd:
           - name: testpmd-sriov-network
-            count: 2  # Interface count
-            mac:
-              - 60:60:00:f4:47:06
-              - 60:60:00:f4:47:07
-      peer_mac:
-        - 50:50:00:f4:47:08
-        - 50:50:00:f4:47:09
+            count: 2  # Interface count, Min 2
+            mac: # List length should match interface count, Optional input. 
+              - 60:60:00:f4:47:06 # Random MAC address for SRIOV-VF interface
+              - 60:60:00:f4:47:07 # Random MAC address for SRIOV-VF interface
+      peer_mac: # List length should match testpmd network interface count, Mandatory input.
+        - 50:50:00:f4:47:08 # MAC address of Traffic generator interface
+        - 50:50:00:f4:47:09 # MAC address of Traffic generator interface
 ```
 
 Additional advanced pod and testpmd specification can also be supplied in CR definition yaml
@@ -152,7 +152,8 @@ it can be overriden by supplying additional inputs in CR definition yaml, provid
 ## Result
 
 Current implemenation, just creates a pod and run testpmd application. At this state, interfaces are ready for traffic IO indefinitely. 
-Traffic generation is not part of this workload yet, will be future implementation. Manually use [trafficgen](https://github.com/atheurer/trafficgen) for packets, refer [this](https://docs.google.com/document/d/1wlT8z-QNzibgmNZnw5M3QNbwBcE0bJEcjWwh_BoA1Ig/edit?usp=sharing).
+Traffic generation is not part of this workload yet, it will be a future implementation. Manually use [trafficgen](https://github.com/atheurer/trafficgen) for packets generation.
+Note down the MAC addresses of testpmd pod for traffic generation.
 
 At the end of this CR, these will be created
 
