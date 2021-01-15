@@ -1,11 +1,29 @@
-- name: Set Peer Macs of "{{ network.name }}"
-  set_fact:
-    maclist_peer: "{{ maclist_peer | default([]) + [ network.mac[item|int-1] | default('50:50:00' | random_mac) ] }}"
-  with_sequence: start=1 count={{ network.count |default('1')|int }} 
-  when: net_type == 'peer'
+- block:
+    - name: Set trex Macs of "{{ network.name }}"
+      set_fact:
+        maclist_trex: "{{ maclist_trex | default([]) + [ network.mac[item|int-1] | default('50:50:00' | random_mac) ] }}"
+      with_sequence: start=1 count={{ network.count |default('1')|int }} 
+      when: ( network.mac is not defined ) or ( network.mac|length != network.count|int )
 
-- name: Set testpmd Macs of "{{ network.name }}"
-  set_fact:
-    maclist_testpmd: "{{ maclist_testpmd | default([]) + [ network.mac[item|int-1] | default('60:60:00' | random_mac) ] }}"
-  with_sequence: start=1 count={{ network.count |default('1')|int }} 
-  when: net_type == 'testpmd'
+    - set_fact:
+        maclist_trex: "{{ network.mac }}"
+      when: 
+        - network.mac is defined 
+        - network.mac|length == network.count|int          
+  when: 
+    - net_type == 'trex'
+
+- block:
+    - name: Set testpmd Macs of "{{ network.name }}"
+      set_fact:
+        maclist_testpmd: "{{ maclist_testpmd | default([]) + [ network.mac[item|int-1] | default('60:60:00' | random_mac) ] }}"
+      with_sequence: start=1 count={{ network.count |default('1')|int }} 
+      when: ( network.mac is not defined ) or ( network.mac|length != network.count|int )
+      
+    - set_fact:
+        maclist_testpmd: "{{ network.mac }}"
+      when: 
+        - network.mac is defined 
+        - network.mac|length == network.count|int      
+  when: 
+    - net_type == 'testpmd'

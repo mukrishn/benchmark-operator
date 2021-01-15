@@ -58,6 +58,12 @@ spec:
 ### Sample PAO configuration
 
 The CPU and socket information might vary, use the below as an example. 
+
+Add label to the MCP pool before creating the performance profile.
+```sh
+# oc label mcp worker machineconfiguration.openshift.io/role=worker
+```
+
 ```yaml
 ---
 apiVersion: performance.openshift.io/v1
