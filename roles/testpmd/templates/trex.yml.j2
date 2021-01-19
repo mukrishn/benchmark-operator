@@ -19,7 +19,8 @@ spec:
             "mac": "{{ network.mac[loop.index - 1] }}",
 {% else %}        
             "mac": "{{ maclist_trex[loop.index - 1] }}",
-{% endif %}            "namespace": "{{ operator_namespace }}"
+{% endif %}
+            "namespace": "{{ operator_namespace }}"
           }{% if loop.index < network.count or outer_loop.index < network_name_list|length %},{% endif %}
 {% endfor %}
 {% endfor %}

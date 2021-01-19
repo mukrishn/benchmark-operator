@@ -86,6 +86,10 @@
 
   when: resource_state.resources[0].status.state == "Starting TestPMD"
 
+- name: Set trex network fact
+  set_fact:      
+    network_resources: {}
+    network_name_list: []
 
 - name: "Parse TRex network"
   include_tasks: 10_network_parser.yml
