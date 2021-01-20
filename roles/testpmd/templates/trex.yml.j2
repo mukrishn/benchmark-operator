@@ -77,7 +77,7 @@ spec:
         - name: PACKET_RATE
           value: "{{ workload_args.packet_rate | default('10kpps') }}" 
         - name: FRAME_SIZE
-          value: "{{ workload_args.frame_size | default(64) }}"                                                           
+          value: "{{ workload_args.frame_size | default(1400) }}"                                                           
 {% if workload_args.environments is defined %}
 {% for key, value in workload_args.environments.items() %}
         - name: {{ key }}
