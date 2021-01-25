@@ -1,13 +1,15 @@
+# https://github.com/rh-nfv-int/trex-operator
+
 kind: Job
 apiVersion: batch/v1
 metadata:
-  name: "trex-pod-{{ trunc_uuid }}"
+  name: "trex-traffic-gen-pod-{{ trunc_uuid }}"
   namespace: "{{ operator_namespace }}"
 spec:
   template:
     metadata:
       labels:
-        app: "trex-pod-{{ trunc_uuid }}"
+        app: "trex-traffic-gen-pod-{{ trunc_uuid }}"
       annotations:
         k8s.v1.cni.cncf.io/networks: '[
 {% for network in workload_args.networks.trex %}
@@ -30,6 +32,18 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: '{{ workload_args.pin_trex }}'
 {% endif %}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - testpmd-application-pod-{{ trunc_uuid }}
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: trex
         command: ["/bin/sh"]
