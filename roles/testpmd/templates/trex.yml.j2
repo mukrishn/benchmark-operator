@@ -12,18 +12,16 @@ spec:
         app: "trex-traffic-gen-pod-{{ trunc_uuid }}"
       annotations:
         k8s.v1.cni.cncf.io/networks: '[
+{% set i = namespace(value=0) %}
 {% for network in workload_args.networks.trex %}
 {% set outer_loop = loop %}
 {% for count in range(network.count) %}
           {
-            "name": "{{ network.name }}",
-{% if network.mac|default([])|length == network.count %}
-            "mac": "{{ network.mac[loop.index - 1] }}",
-{% else %}        
-            "mac": "{{ maclist_trex[loop.index - 1] }}",
-{% endif %}
+            "name": "{{ network.name }}",       
+            "mac": "{{ maclist_trex[loop.index0 + i.value] }}",
             "namespace": "{{ operator_namespace }}"
           }{% if loop.index < network.count or outer_loop.index < network_name_list|length %},{% endif %}
+{% set i.value = i.value + 1 %}
 {% endfor %}
 {% endfor %}
         ]'
@@ -49,7 +47,7 @@ spec:
         command: ["/bin/sh"]
         args:
         - "-c"
-        - "sleep 3600"
+        - "sleep 36000"
         image: "{{ workload_args.image_trex | default('quay.io/mukrishn/trex:latest') }}"
         imagePullPolicy: "{{ workload_args.image_pull_policy | default('Always') }}"
         securityContext:

@@ -12,18 +12,16 @@ spec:
         app: "testpmd-application-pod-{{ trunc_uuid }}"
       annotations:
         k8s.v1.cni.cncf.io/networks: '[
+{% set i = namespace(value=0) %}
 {% for network in workload_args.networks.testpmd %}
 {% set outer_loop = loop %}
 {% for count in range(network.count) %}
           {
-            "name": "{{ network.name }}",
-{% if network.mac|default([])|length == network.count %}
-            "mac": "{{ network.mac[loop.index - 1] }}",
-{% else %}        
-            "mac": "{{ maclist_testpmd[loop.index - 1] }}",
-{% endif %}
+            "name": "{{ network.name }}",        
+            "mac": "{{ maclist_testpmd[loop.index0 + i.value] }}",
             "namespace": "{{ operator_namespace }}"
           }{% if loop.index < network.count or outer_loop.index < network_name_list|length %},{% endif %}
+{% set i.value = i.value + 1 %}
 {% endfor %}
 {% endfor %}
         ]'
