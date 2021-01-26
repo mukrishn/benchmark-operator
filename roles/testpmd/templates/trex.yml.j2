@@ -78,6 +78,8 @@ spec:
         - name: hugepage
           mountPath: /dev/hugepages
         env:
+        - name: CLUSTERNAME
+          value: "{{ clustername }}"        
         - name: NETWORK_NAME_LIST
           value: "{{ network_resources.keys()|list|join(',') }}"
         - name: SOURCE_MAC_LIST
