@@ -18,13 +18,15 @@ spec:
 {% for count in range(network.count) %}
           {
             "name": "{{ network.name }}",       
-            "mac": "{{ maclist_trex[loop.index0 + i.value] }}",
+            "mac": "{{ item.metadata.annotations.maclist_trex.split(',')[i.value] }}",
             "namespace": "{{ operator_namespace }}"
           }{% if loop.index < network.count or outer_loop.index < network_name_list|length %},{% endif %}
 {% set i.value = i.value + 1 %}
 {% endfor %}
 {% endfor %}
         ]'
+        maclist_trex: "{{ item.metadata.annotations.maclist_trex }}"
+        maclist_testpmd: "{{ item.metadata.annotations.maclist_testpmd }}"
     spec:
 {% if workload_args.pin is sameas true %}
       nodeSelector:
@@ -79,9 +81,9 @@ spec:
         - name: NETWORK_NAME_LIST
           value: "{{ network_resources.keys()|list|join(',') }}"
         - name: SOURCE_MAC_LIST
-          value: "{{ maclist_trex|list|join(',') }}"
+          value: "{{ item.metadata.annotations.maclist_trex }}"
         - name: DEST_MAC_LIST
-          value: "{{ maclist_testpmd|list|join(',') }}"  
+          value: "{{ item.metadata.annotations.maclist_testpmd }}"  
         - name: DURATION
           value: "{{ workload_args.duration | default(30) }}" 
         - name: PACKET_SIZE
@@ -89,7 +91,9 @@ spec:
         - name: PACKET_RATE
           value: "{{ workload_args.packet_rate | default('10kpps') }}" 
         - name: FRAME_SIZE
-          value: "{{ workload_args.frame_size | default(1400) }}"                                                           
+          value: "{{ workload_args.frame_size | default(1400) }}" 
+        - name: NUM_STREAM
+          value: "{{ workload_args.num_stream | default(1) }}"                                                                     
 {% if workload_args.environments is defined %}
 {% for key, value in workload_args.environments.items() %}
         - name: {{ key }}

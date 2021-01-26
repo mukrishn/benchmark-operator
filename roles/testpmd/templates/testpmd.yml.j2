@@ -18,13 +18,15 @@ spec:
 {% for count in range(network.count) %}
           {
             "name": "{{ network.name }}",        
-            "mac": "{{ maclist_testpmd[loop.index0 + i.value] }}",
+            "mac": "{{ maclist_testpmd[i.value] }}",
             "namespace": "{{ operator_namespace }}"
           }{% if loop.index < network.count or outer_loop.index < network_name_list|length %},{% endif %}
 {% set i.value = i.value + 1 %}
 {% endfor %}
 {% endfor %}
         ]'
+        maclist_trex: "{{ maclist_trex|list|join(',') }}"
+        maclist_testpmd: "{{ maclist_testpmd|list|join(',') }}"
     spec:
 {% if workload_args.pin is sameas true %}
       nodeSelector:

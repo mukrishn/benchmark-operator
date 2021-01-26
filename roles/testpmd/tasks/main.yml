@@ -96,10 +96,19 @@
   loop: "{{ workload_args.networks.trex }}"
 
 - block:
+  - name: Get TestPMD pod info
+    k8s_facts:
+      kind: Pod
+      api_version: v1
+      namespace: '{{ operator_namespace }}'
+      label_selectors:
+        - app = testpmd-application-pod-{{ trunc_uuid }}
+    register: application_pods
 
   - name: Start TRex
     k8s:
       definition: "{{ lookup('template', 'trex.yml.j2') | from_yaml }}"
+    with_items: "{{ application_pods.resources }}"
 
   - name: Update state to Waiting for TRex
     operator_sdk.util.k8s_status:
