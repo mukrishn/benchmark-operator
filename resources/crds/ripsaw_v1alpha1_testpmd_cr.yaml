@@ -1,0 +1,23 @@
+apiVersion: ripsaw.cloudbulldozer.io/v1alpha1
+kind: Benchmark
+metadata:
+  name: testpmd-benchmark
+  namespace: my-ripsaw
+spec:
+  clustername: myk8scluster
+  workload:
+    name: testpmd
+    args:
+      privileged: true
+      pin: false
+      pin_testpmd: "node-0"      
+      networks:
+        testpmd:
+          - name: testpmd-sriov-network
+            count: 2
+            mac:
+              - 60:60:00:f4:47:06
+              - 60:60:00:f4:47:07
+      peer_mac:
+        - 50:50:00:f4:47:08
+        - 50:50:00:f4:47:09
