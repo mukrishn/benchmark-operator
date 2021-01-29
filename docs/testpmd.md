@@ -58,6 +58,12 @@ spec:
 ### Sample PAO configuration
 
 The CPU and socket information might vary, use the below as an example. 
+
+Add label to the MCP pool before creating the performance profile.
+```sh
+# oc label mcp worker machineconfiguration.openshift.io/role=worker
+```
+
 ```yaml
 ---
 apiVersion: performance.openshift.io/v1
@@ -103,28 +109,33 @@ spec:
       privileged: true
       pin: false
       pin_testpmd: "node-0"      
+      pin_trex: "node-0"      
       networks:
         testpmd:
           - name: testpmd-sriov-network
             count: 2  # Interface count, Min 2
-            mac: # List length should match interface count, Optional input. 
-              - 60:60:00:f4:47:06 # Random MAC address for SRIOV-VF interface
-              - 60:60:00:f4:47:07 # Random MAC address for SRIOV-VF interface
-      peer_mac: # List length should match testpmd network interface count, Mandatory input.
-        - 50:50:00:f4:47:08 # MAC address of Traffic generator interface
-        - 50:50:00:f4:47:09 # MAC address of Traffic generator interface
+        trex:
+          - name: testpmd-sriov-network
+            count: 2
 ```
 
-Additional advanced pod and testpmd specification can also be supplied in CR definition yaml
-for more description refer [here](https://manpages.debian.org/experimental/dpdk/testpmd.1.en.html)
+Additional advanced pod and testpmd.trex specification can also be supplied in CR definition yaml(below specs are current defaults)
 
+
+Pod specification arguments,
 ```yaml
   workload:
     ...
     pod_hugepage_1gb_count: 4Gi 
     pod_memory: "1000Mi"
     pod_cpu: 6
-    socket_memory: 1024
+```
+
+TestPMD arguments for more description refer [here](https://manpages.debian.org/experimental/dpdk/testpmd.1.en.html)
+```yaml
+  workload:
+    ...
+    socket_memory: 1024,0 # This memory is allocated based on your node hugepage allocation, ex. for NUMA 0.
     memory_channels: 4
     forwarding_cores: 4
     rx_queues: 1
@@ -135,9 +146,19 @@ for more description refer [here](https://manpages.debian.org/experimental/dpdk/
     stats_period: 1
 ```
 
+TRex arguments 
+```yaml
+  workload:
+    ...
+    duration: 30 # In Seconds
+    packet_size: 64
+    packet_rate: "10kpps" # All lower case and only support Packets per seconds
+    num_stream: 1
+```
+
 ## Container Images
 
-Pod uses this [image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=dockerfile&tag=latest&push_date=1610346978000)
+TestPMD Pod uses this [image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=dockerfile&tag=latest&push_date=1610346978000)
 it can be overriden by supplying additional inputs in CR definition yaml, provided `testpmd` command will be executable from the image `WORKDIR` with additional environment variables
 
 ```yaml
@@ -149,103 +170,46 @@ it can be overriden by supplying additional inputs in CR definition yaml, provid
       testpmd_mode: "direct" ## Just an example
 ```
 
+TRex Pod uses [snafu](https://quay.io/repository/cloud-bulldozer/trex) based image
+
 ## Result
 
-Current implemenation, just creates a pod and run testpmd application. At this state, interfaces are ready for traffic IO indefinitely. 
-Traffic generation is not part of this workload yet, it will be a future implementation. Manually use [trafficgen](https://github.com/atheurer/trafficgen) for packets generation.
-Note down the MAC addresses of testpmd pod for traffic generation.
-
-At the end of this CR, these will be created
+This CR will create TestPMD pod and TRex pod using the SRIOV network provided and run traffic between them. The result can be viewed as below,
 
 ```sh
 # oc get benchmark 
 NAME                TYPE      STATE      METADATA STATE   CERBERUS        UUID                                   AGE
-testpmd-benchmark   testpmd   Complete   not collected    not connected   ebe5d7ab-1c88-57bd-b789-b3374a59c4b9   58s
-```
-```sh
+testpmd-benchmark   testpmd   Complete   not collected    not connected   35daf5ac-2edf-5e34-a6cc-17fcda055937   4m36s
+
 # oc get pods
-NAME                                     READY   STATUS    RESTARTS   AGE
-testpmd-application-pod-ebe5d7ab-ts9hp   1/1     Running   0          35s
-```
+NAME                                     READY   STATUS      RESTARTS   AGE
+benchmark-operator-7fff779945-d9485      3/3     Running     0          4m16s
+testpmd-application-pod-35daf5ac-nxc4v   1/1     Running     0          2m41s
+trex-traffic-gen-pod-35daf5ac-dslzh      0/1     Completed   0          2m20s
 
-Traffic IO can be seen in logs, if any external generator is launched - for example trex or trafficgen
-
-```sh
-# oc logs testpmd-application-pod-ebe5d7ab-ts9hp
-EAL: Detected 32 lcore(s)
-EAL: Detected 2 NUMA nodes
-EAL: Auto-detected process type: PRIMARY
-EAL: Multi-process socket /tmp/dpdk/pg/mp_socket
-EAL: Selected IOVA mode 'VA'
-EAL: Probing VFIO support...
-EAL: VFIO support initialized
-EAL: PCI device 0000:62:0b.1 on NUMA socket 0
-EAL:   probe driver: 8086:154c net_i40e_vf
-EAL:   using IOMMU type 1 (Type 1)
-EAL: PCI device 0000:62:0c.2 on NUMA socket 0
-EAL:   probe driver: 8086:154c net_i40e_vf
-Auto-start selected
-Set mac packet forwarding mode
-CLI commands to be read from /tmp/testpmd-cmdline.txt
-testpmd: create a new mbuf pool <mbuf_pool_socket_0>: n=187456, size=2176, socket=0
-testpmd: preferred mempool ops selected: ring_mp_mc
-Configuring Port 0 (socket 0)
-Port 0: 60:60:00:F4:47:07
-Configuring Port 1 (socket 0)
-Port 1: 60:60:00:F4:47:06
-Checking link statuses...
-Done
-Read CLI commands from /tmp/testpmd-cmdline.txt
-No commandline core given, start packet forwarding
-mac packet forwarding - ports=2 - cores=2 - streams=2 - NUMA support enabled, MP allocation mode: native
-Logical Core 8 (socket 0) forwards packets on 1 streams:
-  RX P=0/Q=0 (socket 0) -> TX P=1/Q=0 (socket 0) peer=50:50:00:F4:47:09
-Logical Core 10 (socket 0) forwards packets on 1 streams:
-  RX P=1/Q=0 (socket 0) -> TX P=0/Q=0 (socket 0) peer=50:50:00:F4:47:08
-
-  mac packet forwarding packets/burst=32
-  nb forwarding cores=4 - nb forwarding ports=2
-  port 0: RX queue number: 1 Tx queue number: 1
-    Rx offloads=0x0 Tx offloads=0x0
-    RX queue: 0
-      RX desc=1024 - RX free threshold=32
-      RX threshold registers: pthresh=8 hthresh=8  wthresh=0
-      RX Offloads=0x0
-    TX queue: 0
-      TX desc=1024 - TX free threshold=32
-      TX threshold registers: pthresh=32 hthresh=0  wthresh=0
-      TX offloads=0x0 - TX RS bit threshold=32
-  port 1: RX queue number: 1 Tx queue number: 1
-    Rx offloads=0x0 Tx offloads=0x0
-    RX queue: 0
-      RX desc=1024 - RX free threshold=32
-      RX threshold registers: pthresh=8 hthresh=8  wthresh=0
-      RX Offloads=0x0
-    TX queue: 0
-      TX desc=1024 - TX free threshold=32
-      TX threshold registers: pthresh=32 hthresh=0  wthresh=0
-      TX offloads=0x0 - TX RS bit threshold=32
-
-Port statistics ====================================
-  ######################## NIC statistics for port 0  ########################
-  RX-packets: 28         RX-missed: 0          RX-bytes:  1792
-  RX-errors: 0
-  RX-nombuf:  0         
-  TX-packets: 28         TX-errors: 0          TX-bytes:  1680
-
-  Throughput (since last show)
-  Rx-pps:            2          Rx-bps:         1456
-  Tx-pps:            2          Tx-bps:         1368
-  ############################################################################
-
-  ######################## NIC statistics for port 1  ########################
-  RX-packets: 28         RX-missed: 0          RX-bytes:  1792
-  RX-errors: 0
-  RX-nombuf:  0         
-  TX-packets: 28         TX-errors: 0          TX-bytes:  1680
-
-  Throughput (since last show)
-  Rx-pps:            2          Rx-bps:         1456
-  Tx-pps:            2          Tx-bps:         1368
-  ############################################################################
+oc logs trex-traffic-gen-pod-35daf5ac-dslzh
+2021-01-28T17:41:02Z - INFO     - MainProcess - run_snafu: logging level is INFO
+2021-01-28T17:41:02Z - INFO     - MainProcess - wrapper_factory: identified trex as the benchmark wrapper
+2021-01-28T17:41:02Z - INFO     - MainProcess - trigger_trex: Starting TRex Traffic Generator..
+2021-01-28T17:41:47Z - INFO     - MainProcess - trigger_trex: {
+  "cluster_name": "myk8scluster",
+  "cpu_util": 0.22244608402252197,
+  "duration": 30,
+  "kind": "pod",
+  "num_stream": 1,
+  "packet_rate": "10kpps",
+  "packet_size": 64,
+  "rx_bps": 17426300.0,
+  "rx_drop_bps": 0.0,
+  "rx_pps": 19984.2890625,
+  "testpmd_node": "worker000-fc640",
+  "trex_node": "worker001-fc640",
+  "tx_bps": 16786740.0,
+  "tx_pps": 19984.212890625,
+  "user": "snafu",
+  "uuid": "35daf5ac",
+  "workload": "testpmd"
+}
+2021-01-28T17:41:47Z - INFO     - MainProcess - trigger_trex: Finished Generating traffic..
+2021-01-28T17:41:47Z - INFO     - MainProcess - run_snafu: Duration of execution - 0:00:45, with total size of 240 bytes
 ```

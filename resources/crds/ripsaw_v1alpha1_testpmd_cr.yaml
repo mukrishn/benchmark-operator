@@ -11,13 +11,12 @@ spec:
       privileged: true
       pin: false
       pin_testpmd: "node-0"      
+      pin_trex: "node-0"      
       networks:
         testpmd:
           - name: testpmd-sriov-network
             count: 2
-            mac:
-              - 60:60:00:f4:47:06
-              - 60:60:00:f4:47:07
-      peer_mac:
-        - 50:50:00:f4:47:08
-        - 50:50:00:f4:47:09
+        trex:
+          - name: testpmd-sriov-network
+            count: 2
+
